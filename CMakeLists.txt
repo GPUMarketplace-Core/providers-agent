@@ -41,3 +41,9 @@ endif()
 
 # Installer
 add_subdirectory(installer)
+
+# Examples (optional)
+option(BUILD_EXAMPLES "Build example programs" ON)
+if(BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif()
