@@ -8,10 +8,10 @@ target_include_directories(gui
 
 target_link_libraries(gui
     PUBLIC common
+    PUBLIC system_probe
 )
 
-# TODO: Choose Win32 or Qt
-# For Win32:
+# Win32 API implementation
 if(WIN32)
     target_link_libraries(gui PRIVATE user32 gdi32)
 endif()
