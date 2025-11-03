@@ -22,6 +22,29 @@ providers-agent/
 └── docs/                 # Documentation
 ```
 
+## Features
+
+### System Tray Agent (Windows)
+The application includes a Windows system tray icon that provides:
+- **Visual Status Indicators**: 
+  - 🔴 Red icon for Offline status
+  - 🟢 Green icon for Online status
+  - 🟡 Yellow icon for Busy status
+- **Interactive Controls**:
+  - Right-click menu for status changes and exit
+  - Double-click to toggle between Online/Offline
+  - Hover tooltip showing current status
+- **Notifications**: Balloon notifications for status changes and events
+
+See [Tray Agent Documentation](docs/tray_agent_usage.md) for detailed usage.
+
+### Other Features
+- Real-time CPU and RAM monitoring
+- GPU statistics via NVIDIA NVML
+- Secure credential storage using Windows DPAPI
+- JSON-based persistent storage
+- Heartbeat client for server communication
+
 ## Team Tasks
 
 1. **System Probe** - CPU/RAM monitoring using WinAPI
@@ -31,7 +54,7 @@ providers-agent/
 5. **Heartbeat Client** - HTTP POST every 10s
 6. **Credential Manager** - Windows Credential Manager/DPAPI
 7. **Storage Module** - JSON file I/O using nlohmann::json
-8. **Tray Agent** - System tray status indicator
+8. **Tray Agent** - System tray status indicator with Online/Offline toggle
 9. **Testing & Integration** - VM testing and demo
 
 ## Build Instructions
