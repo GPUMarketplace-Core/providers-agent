@@ -14,18 +14,23 @@ using namespace providers_agent;
 int main(int argc, char* argv[]) {
     std::cout << "Providers Agent Starting..." << std::endl;
 
-    // TODO: Initialize all modules
-    // - System Probe
-    // - GPU Probe
-    // - Heartbeat Client
-    // - Credential Manager
-    // - Storage
-    // - GUI (optional)
-    // - Tray Agent
+    // Test GPU Probe
+    gpu_probe::GPUProbe gpu_probe;
+    auto status = gpu_probe.initialize();
+    if (status == common::Status::OK) {
+        std::cout << "GPU Probe initialized successfully" << std::endl;
+        
+        // Log GPU info to file
+        status = gpu_probe.logToFile("gpu_info.json");
+        if (status == common::Status::OK) {
+            std::cout << "GPU info logged to gpu_info.json" << std::endl;
+        } else {
+            std::cout << "Failed to log GPU info" << std::endl;
+        }
+    } else {
+        std::cout << "Failed to initialize GPU Probe" << std::endl;
+    }
 
     std::cout << "Providers Agent Ready" << std::endl;
-
-    // TODO: Run main application loop or GUI
-
     return 0;
 }

@@ -11,6 +11,6 @@ target_link_libraries(gpu_probe
     PRIVATE nlohmann_json::nlohmann_json
 )
 
-# TODO: Link NVML library when CUDA Toolkit is installed
-# find_package(CUDAToolkit REQUIRED)
-# target_link_libraries(gpu_probe PRIVATE CUDA::nvml)
+# Link NVML library
+find_package(CUDAToolkit REQUIRED)
+target_link_libraries(gpu_probe PRIVATE CUDA::nvml)
