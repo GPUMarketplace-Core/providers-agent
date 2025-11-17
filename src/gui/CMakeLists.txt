@@ -10,12 +10,9 @@ target_link_libraries(gui
     PUBLIC common
 )
 
-# TODO: Choose Win32 or Qt
-# For Win32:
-if(WIN32)
-    target_link_libraries(gui PRIVATE user32 gdi32)
-endif()
+# Use Qt for cross-platform GUI
+find_package(Qt6 COMPONENTS Core Widgets REQUIRED)
+target_link_libraries(gui PRIVATE Qt6::Core Qt6::Widgets)
 
-# For Qt (uncomment when using Qt):
-# find_package(Qt6 COMPONENTS Widgets REQUIRED)
-# target_link_libraries(gui PRIVATE Qt6::Widgets)
+# Enable Qt MOC if needed
+set(CMAKE_AUTOMOC ON)

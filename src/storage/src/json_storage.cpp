@@ -1,12 +1,9 @@
 #include "storage/json_storage.h"
+#include <fstream>
+#include <filesystem>
 
 namespace providers_agent {
 namespace storage {
-
-// TODO: Implement using std::fstream and nlohmann::json
-// - Save hardware.json
-// - Load hardware.json
-// - Handle file I/O errors
 
 JsonStorage::JsonStorage() {
 }
@@ -15,23 +12,72 @@ JsonStorage::~JsonStorage() {
 }
 
 common::Status JsonStorage::save(const std::string& filepath, const nlohmann::json& data) {
-    // TODO: Write JSON to file using std::ofstream
-    return common::Status::ERROR_NOT_INITIALIZED;
+    try {
+        std::ofstream file(filepath);
+        if (!file.is_open()) {
+            return common::Status::ERROR_FILE_IO;
+        }
+        
+        file << data.dump(4); // Pretty print with 4-space indent
+        file.close();
+        
+        if (file.fail()) {
+            return common::Status::ERROR_FILE_IO;
+        }
+        
+        return common::Status::OK;
+    } catch (const std::exception&) {
+        return common::Status::ERROR_FILE_IO;
+    }
 }
 
 common::Status JsonStorage::load(const std::string& filepath, nlohmann::json& data) {
-    // TODO: Read JSON from file using std::ifstream
-    return common::Status::ERROR_NOT_INITIALIZED;
+    try {
+        if (!exists(filepath)) {
+            return common::Status::ERROR_FILE_IO;
+        }
+        
+        std::ifstream file(filepath);
+        if (!file.is_open()) {
+            return common::Status::ERROR_FILE_IO;
+        }
+        
+        file >> data;
+        file.close();
+        
+        if (file.fail()) {
+            return common::Status::ERROR_FILE_IO;
+        }
+        
+        return common::Status::OK;
+    } catch (const std::exception&) {
+        return common::Status::ERROR_FILE_IO;
+    }
 }
 
 bool JsonStorage::exists(const std::string& filepath) {
-    // TODO: Check if file exists
-    return false;
+    try {
+        return std::filesystem::exists(filepath) && 
+               std::filesystem::is_regular_file(filepath);
+    } catch (const std::exception&) {
+        return false;
+    }
 }
 
 common::Status JsonStorage::remove(const std::string& filepath) {
-    // TODO: Delete file
-    return common::Status::ERROR_NOT_INITIALIZED;
+    try {
+        if (!exists(filepath)) {
+            return common::Status::OK; // Already doesn't exist
+        }
+        
+        if (std::filesystem::remove(filepath)) {
+            return common::Status::OK;
+        } else {
+            return common::Status::ERROR_FILE_IO;
+        }
+    } catch (const std::exception&) {
+        return common::Status::ERROR_FILE_IO;
+    }
 }
 
 } // namespace storage
