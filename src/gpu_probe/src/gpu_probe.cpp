@@ -1,125 +1,61 @@
 #include "gpu_probe/gpu_probe.h"
-#include <nvml.h>
-#include <fstream>
+#include <iostream>
+#include <vector>
+#include <string>
 
-namespace providers_agent {
-namespace gpu_probe {
-
-class GPUProbe::Impl {
-public:
-    bool initialized = false;
-    std::vector<common::GPUInfo> cached_gpus;
-};
-
-GPUProbe::GPUProbe() : pImpl(new Impl()) {
-}
-
-GPUProbe::~GPUProbe() {
-    if (pImpl->initialized) {
-        nvmlShutdown();
-    }
-    delete pImpl;
-}
-
-common::Status GPUProbe::initialize() {
-    nvmlReturn_t result = nvmlInit();
-    if (result != NVML_SUCCESS) {
-        return common::Status::ERROR_GENERAL;
-    }
-    pImpl->initialized = true;
-    return common::Status::OK;
-}
-
-common::Status GPUProbe::getGPUInfo(std::vector<common::GPUInfo>& gpus) {
-    if (!pImpl->initialized) {
-        return common::Status::ERROR_NOT_INITIALIZED;
+static void get_gpu_info()
+{
+    if (!nvre::initialize_adapters())
+    {
+        return;
     }
 
-    unsigned int device_count;
-    nvmlReturn_t result = nvmlDeviceGetCount(&device_count);
-    if (result != NVML_SUCCESS) {
-        return common::Status::ERROR_GENERAL;
-    }
-
-    gpus.clear();
-    for (unsigned int i = 0; i < device_count; i++) {
-        nvmlDevice_t device;
-        result = nvmlDeviceGetHandleByIndex(i, &device);
-        if (result != NVML_SUCCESS) continue;
-
-        common::GPUInfo gpu_info;
-        
-        // Get GPU name
-        char name[NVML_DEVICE_NAME_BUFFER_SIZE];
-        result = nvmlDeviceGetName(device, name, NVML_DEVICE_NAME_BUFFER_SIZE);
-        if (result == NVML_SUCCESS) {
-            gpu_info.name = std::string(name);
+    for (unsigned i = 0; i < nvre::adapters_count; i++)
+    {
+        nvre::NvHandle root = { 0 };
+        if (nvre::alloc_root_handle(nvre::adapters[i], &root) != NV_OK)
+        {
+            continue;
         }
 
-        // Get memory info
-        nvmlMemory_t memory;
-        result = nvmlDeviceGetMemoryInfo(device, &memory);
-        if (result == NVML_SUCCESS) {
-            gpu_info.vram_total_bytes = memory.total;
-            gpu_info.vram_used_bytes = memory.used;
+        nvre::NvHandle device = { 0 };
+        if (nvre::alloc_nv0080_handle(nvre::adapters[i], root, { i }) != NV_OK)
+        {
+            nvre::free_handle(nvre::adapters[i], root, { 0 }, root);
+            continue;
         }
 
-        // Get temperature
-        unsigned int temp;
-        result = nvmlDeviceGetTemperature(device, NVML_TEMPERATURE_GPU, &temp);
-        if (result == NVML_SUCCESS) {
-            gpu_info.temperature_celsius = temp;
+        nvre::NvHandle sub_device = { 0 };
+        if (nvre::alloc_nv2080_handle(nvre::adapters[i], root, { i }, { i + 1 }) != NV_OK)
+        {
+            nvre::free_handle(nvre::adapters[i], root, root, { i });
+            nvre::free_handle(nvre::adapters[i], root, { 0 }, root);
+            continue;
         }
 
-        // Get utilization
-        nvmlUtilization_t utilization;
-        result = nvmlDeviceGetUtilizationRates(device, &utilization);
-        if (result == NVML_SUCCESS) {
-            gpu_info.utilization_percent = utilization.gpu;
+        std::string name;
+        if (nvre::nv2080_ctrl_gpu_get_name(nvre::adapters[i], root, { i + 1 }, name) == NV_OK)
+        {
+            std::cout << "Found GPU:" << name << std::endl;
         }
 
-        gpus.push_back(gpu_info);
-    }
+        nvre::NV2080_CTRL_GPU_GET_PARTITIONS_PARAMS partitions_params = { 0 };
+        if (nvre::nv2080_ctrl_gpu_get_partitions(nvre::adapters[i], root, { i + 1 }, partitions_params) == NV_OK)
+        {
+            if (partitions_params.validPartitionCount > 0)
+            {
+                std::cout << "  VRAM: " << partitions_params.queryPartitionInfo[0].memSize << " bytes" << std::endl;
+            }
+        }
 
-    pImpl->cached_gpus = gpus;
-    return common::Status::OK;
+        std::string info;
+        if (nvre::nv2080_ctrl_gpu_get_gid_info(nvre::adapters[i], root, { i + 1 }, info) == NV_OK)
+        {
+            // Do something with the info
+        }
+
+        nvre::free_handle(nvre::adapters[i], root, { i }, { i + 1 });
+        nvre::free_handle(nvre::adapters[i], root, root, { i });
+        nvre::free_handle(nvre::adapters[i], root, { 0 }, root);
+    }
 }
-
-nlohmann::json GPUProbe::toJson() const {
-    nlohmann::json j;
-    j["gpus"] = nlohmann::json::array();
-    
-    for (const auto& gpu : pImpl->cached_gpus) {
-        nlohmann::json gpu_json;
-        gpu_json["name"] = gpu.name;
-        gpu_json["vram_total_bytes"] = gpu.vram_total_bytes;
-        gpu_json["vram_used_bytes"] = gpu.vram_used_bytes;
-        gpu_json["temperature_celsius"] = gpu.temperature_celsius;
-        gpu_json["utilization_percent"] = gpu.utilization_percent;
-        j["gpus"].push_back(gpu_json);
-    }
-    
-    return j;
-}
-
-common::Status GPUProbe::logToFile(const std::string& filepath) {
-    std::vector<common::GPUInfo> gpus;
-    common::Status status = getGPUInfo(gpus);
-    if (status != common::Status::OK) {
-        return status;
-    }
-
-    std::ofstream file(filepath);
-    if (!file.is_open()) {
-        return common::Status::ERROR_FILE_IO;
-    }
-
-    nlohmann::json log_data = toJson();
-    file << log_data.dump(4);
-    file.close();
-
-    return common::Status::OK;
-}
-
-} // namespace gpu_probe
-} // namespace providers_agent
