@@ -11,7 +11,10 @@ target_link_libraries(heartbeat
     PRIVATE nlohmann_json::nlohmann_json
 )
 
-# TODO: Link HTTP library (WinHTTP or curl)
+# Link HTTP library (WinHTTP on Windows, curl on macOS/Linux)
 if(WIN32)
     target_link_libraries(heartbeat PRIVATE winhttp)
+else()
+    find_package(CURL REQUIRED)
+    target_link_libraries(heartbeat PRIVATE CURL::libcurl)
 endif()
