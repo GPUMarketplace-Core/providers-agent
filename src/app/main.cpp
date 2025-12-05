@@ -20,6 +20,25 @@ int main(int argc, char* argv[]) {
     
     std::cout << "Providers Agent Starting..." << std::endl;
 
+    // Test GPU Probe
+    gpu_probe::GPUProbe gpu_probe;
+    auto status = gpu_probe.initialize();
+    if (status == common::Status::OK) {
+        std::cout << "GPU Probe initialized successfully" << std::endl;
+        
+        // Log GPU info to file
+        status = gpu_probe.logToFile("gpu_info.json");
+        if (status == common::Status::OK) {
+            std::cout << "GPU info logged to gpu_info.json" << std::endl;
+        } else {
+            std::cout << "Failed to log GPU info" << std::endl;
+        }
+    } else {
+        std::cout << "Failed to initialize GPU Probe" << std::endl;
+    }
+
+    std::cout << "Providers Agent Ready" << std::endl;
+    return 0;
     // Check for required environment variable
     const char* api_endpoint = std::getenv("HEART_BEAT_API_ENDPOINT");
     if (!api_endpoint) {
