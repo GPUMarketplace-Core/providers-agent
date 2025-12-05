@@ -3,13 +3,26 @@ build/
 out/
 bin/
 lib/
+cmake-build-*/
+cmake-build/
+*_build/
+*_builds/
 
 # CMake
 CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
+CMakeScripts/
+CTestTestfile.cmake
+_deps/
 *.cmake
 !CMakeLists.txt
+!**/CMakeLists.txt
+CMakeCache.txt.*
+cmake_install.cmake.*
+install_manifest.txt
+compile_commands.json
+CTestCustom.cmake
 
 # Visual Studio
 .vs/
@@ -19,24 +32,84 @@ cmake_install.cmake
 *.sln
 *.suo
 *.user
+*.userosscache
+*.sln.docstates
+x64/
+x86/
+[Dd]ebug/
+[Rr]elease/
+[Dd]ebugPublic/
+[Rr]eleases/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+
+# Xcode
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+*.xcuserstate
+*.xcuserdatad
+project.xcworkspace/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+DerivedData/
+
+# CLion
+.idea/
+cmake-build-*/
+cmake-build/
+*.iml
+out/
+
+# Qt
+moc_*.cpp
+moc_*.h
+qrc_*.cpp
+ui_*.h
+*.qrc.depends
+*.pro.user
+*.pro.user.*
+*.qmlc
+*.jsc
+*.autosave
+*.qm
+object_script.*.Release
+object_script.*.Debug
+*_plugin_import.cpp
+/.qmake.cache
+/.qmake.stash
 
 # Compiled Object files
 *.o
 *.obj
+*.ko
+*.elf
 
 # Compiled Dynamic libraries
 *.so
+*.so.*
 *.dylib
 *.dll
+*.dylib.*
 
 # Compiled Static libraries
 *.a
 *.lib
+*.la
+*.lo
 
 # Executables
 *.exe
 *.out
 *.app
+*.deb
+*.rpm
+*.pkg
+*.dmg
 
 # IDE
 .vscode/
@@ -44,13 +117,88 @@ cmake_install.cmake
 *.swp
 *.swo
 *~
+*.sublime-project
+*.sublime-workspace
+*.code-workspace
 
 # OS
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
 
 # Logs
 *.log
+*.log.*
+logs/
+*.tlog
 
 # Generated files
 hardware.json
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# Node.js (for dummy_heartbeat_receiver)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+.npm
+.eslintcache
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.cert
+*.crt
+secrets/
+credentials.json
+
+# Test artifacts
+Testing/
+test-results/
+*.gcda
+*.gcno
+*.gcov
+coverage/
+*.profdata
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+*.ilk
+*.exp
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Resource files
+*.res
+*.resources
+
+# Other
+*.orig
+*.rej
+*.patch
+*.diff
+*.zip
+*.tar.gz
+*.rar
+
+
+dummy_heartbeat_receiver
+*.md
