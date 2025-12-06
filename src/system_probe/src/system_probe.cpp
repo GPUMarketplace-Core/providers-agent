@@ -24,8 +24,94 @@ public:
 
     Impl() : initialized(false) {}
 
+    std::string getUniqueIdentifier() {
+        std::string id;
+#ifdef _WIN32
+        HKEY hKey;
+        if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Cryptography", 0, KEY_READ | KEY_WOW64_64KEY, &hKey) == ERROR_SUCCESS) {
+            char szGuid[64] = {0};
+            DWORD dwSize = sizeof(szGuid);
+            if (RegQueryValueExA(hKey, "MachineGuid", NULL, NULL, (LPBYTE)szGuid, &dwSize) == ERROR_SUCCESS) {
+                id = szGuid;
+            }
+            RegCloseKey(hKey);
+        }
+#else
+        // Linux/Unix fallback
+        std::ifstream f("/etc/machine-id");
+        if (f.is_open()) {
+            f >> id;
+        }
+        if (id.empty()) {
+             // Try dbus machine-id
+             std::ifstream f2("/var/lib/dbus/machine-id");
+             if (f2.is_open()) {
+                 f2 >> id;
+             }
+        }
+#endif
+        // Fallback: generate a hash from available system info if machine-id is missing
+        if (id.empty()) {
+             // Simple fallback (not persistent across reboots if info changes, but decent)
+             std::stringstream ss;
+             // Access cached_info if initialized, or just use a placeholder
+             // Since this is called from SystemProbe which initializes, we might assume initialized.
+             // But getUniqueIdentifier might be called independently.
+             // Let's just return a random fallback if all else fails, or "unknown-node"
+             id = "unknown-node-" + std::to_string(std::time(nullptr)); 
+        }
+        return id;
+    }
+
 #ifdef _WIN32
     common::Status getSystemInfoWin32(common::SystemInfo& info) {
+        // OS Info
+        std::ostringstream osName;
+        std::string buildNumber;
+        
+        // Try to read from Registry for accurate name (Windows 10/11)
+        HKEY hKey;
+        if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+            char productName[256] = {0};
+            DWORD size = sizeof(productName);
+            if (RegQueryValueExA(hKey, "ProductName", NULL, NULL, (LPBYTE)productName, &size) == ERROR_SUCCESS) {
+                osName << productName;
+            }
+            
+            char currentBuild[256] = {0};
+            size = sizeof(currentBuild);
+            if (RegQueryValueExA(hKey, "CurrentBuild", NULL, NULL, (LPBYTE)currentBuild, &size) == ERROR_SUCCESS) {
+                buildNumber = currentBuild;
+            }
+            
+            RegCloseKey(hKey);
+        }
+        
+        // Fallback if registry failed
+        if (osName.str().empty()) {
+            OSVERSIONINFOEX osInfo;
+            ZeroMemory(&osInfo, sizeof(OSVERSIONINFOEX));
+            osInfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
+            
+            #pragma warning(push)
+            #pragma warning(disable: 4996)
+            GetVersionEx((OSVERSIONINFO*)&osInfo);
+            #pragma warning(pop)
+            
+            osName << "Windows " << osInfo.dwMajorVersion << "." << osInfo.dwMinorVersion;
+            buildNumber = std::to_string(osInfo.dwBuildNumber);
+        }
+        
+        info.os.name = osName.str();
+        info.os.version = buildNumber;
+        info.os.architecture = "x86_64"; // Assuming 64-bit build
+        
+        char hostname[256];
+        DWORD size = sizeof(hostname);
+        if (GetComputerNameA(hostname, &size)) {
+            info.os.hostname = hostname;
+        }
+
         // CPU Info
         SYSTEM_INFO sysInfo;
         GetSystemInfo(&sysInfo);
@@ -33,9 +119,28 @@ public:
         info.cpu.cores = sysInfo.dwNumberOfProcessors;
         info.cpu.logical_processors = sysInfo.dwNumberOfProcessors;
         
-        // Get CPU frequency from registry or WMI (simplified here)
-        // For now, we'll use a default or query it
-        info.cpu.frequency_mhz = 0; // TODO: Query actual frequency
+        // Get CPU Name from Registry
+        if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+            char cpuName[256] = {0};
+            DWORD cpuNameSize = sizeof(cpuName);
+            if (RegQueryValueExA(hKey, "ProcessorNameString", NULL, NULL, (LPBYTE)cpuName, &cpuNameSize) == ERROR_SUCCESS) {
+                info.cpu.model = cpuName;
+            }
+            
+            char cpuVendor[256] = {0};
+            DWORD cpuVendorSize = sizeof(cpuVendor);
+            if (RegQueryValueExA(hKey, "VendorIdentifier", NULL, NULL, (LPBYTE)cpuVendor, &cpuVendorSize) == ERROR_SUCCESS) {
+                info.cpu.vendor = cpuVendor;
+            }
+            
+            DWORD mhz = 0;
+            DWORD mhzSize = sizeof(mhz);
+            if (RegQueryValueExA(hKey, "~MHz", NULL, NULL, (LPBYTE)&mhz, &mhzSize) == ERROR_SUCCESS) {
+                info.cpu.frequency_mhz = mhz;
+            }
+            
+            RegCloseKey(hKey);
+        }
         
         // Memory Info
         MEMORYSTATUSEX memStatus;
@@ -174,6 +279,10 @@ nlohmann::json SystemProbe::toJson() const {
             {"usage_percent", info.memory.usage_percent}
         }}
     };
+}
+
+std::string SystemProbe::getUniqueIdentifier() {
+    return pImpl->getUniqueIdentifier();
 }
 
 } // namespace system_probe

@@ -10,6 +10,7 @@ target_link_libraries(providers_agent
         heartbeat
         credential_manager
         storage
+        job_runner
         gui
         tray_agent
 )
@@ -18,6 +19,14 @@ target_link_libraries(providers_agent
 find_package(Qt6 COMPONENTS Core Widgets REQUIRED)
 target_link_libraries(providers_agent PRIVATE Qt6::Core Qt6::Widgets)
 set(CMAKE_AUTOMOC ON)
+
+# Copy Blender files to output directory
+# add_custom_command(TARGET providers_agent POST_BUILD
+#    COMMAND ${CMAKE_COMMAND} -E copy_directory
+#    ${CMAKE_SOURCE_DIR}/src/blender
+#    $<TARGET_FILE_DIR:providers_agent>/blender
+#    COMMENT "Copying Blender files to output directory..."
+# )
 
 if(WIN32)
     # Set as Windows GUI application (not console)

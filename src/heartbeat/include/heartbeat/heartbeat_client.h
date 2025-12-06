@@ -42,6 +42,9 @@ public:
     // Update GPU metrics (from GPU probe)
     void updateGPUMetrics(const std::vector<common::GPUInfo>& gpuMetrics);
 
+    // Update System Info (CPU/Memory)
+    void updateSystemInfo(const common::SystemInfo& sysInfo);
+
 private:
     class Impl;
     Impl* pImpl;

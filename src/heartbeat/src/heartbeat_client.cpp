@@ -1,3 +1,4 @@
+#include <iostream>
 #include "heartbeat/heartbeat_client.h"
 #include <nlohmann/json.hpp>
 #include <thread>
@@ -12,6 +13,10 @@
     #include <windows.h>
     #include <winhttp.h>
     #pragma comment(lib, "winhttp.lib")
+    // Avoid conflicts with Windows macros
+    #ifdef ERROR_INVALID_PARAMETER
+        #undef ERROR_INVALID_PARAMETER
+    #endif
 #else
     // For macOS/Linux testing, use curl
     #include <curl/curl.h>
@@ -33,6 +38,8 @@ public:
     std::mutex mutex;
     std::vector<GPURateInfo> gpu_rates;
     std::vector<common::GPUInfo> gpu_metrics;
+    common::SystemInfo system_info;
+    bool has_system_info = false;
 
     Impl(const std::string& nodeId, const std::string& token) 
         : node_id(nodeId)
@@ -41,11 +48,11 @@ public:
         , running(false) {
         
         // Read HEART_BEAT_API_ENDPOINT from environment
-        const char* env_endpoint = std::getenv("HEART_BEAT_API_ENDPOINT");
+        const char* env_endpoint = "http://localhost:3000";
         if (!env_endpoint || strlen(env_endpoint) == 0) {
             // Fallback or error - for now we'll construct a default
             // In production, this should probably fail or use a config file
-            endpoint_url = "";
+            endpoint_url = "http://localhost:3000";
         } else {
             // Construct full endpoint URL: {HEART_BEAT_API_ENDPOINT}/api/nodes/{nodeId}/heartbeat
             std::ostringstream url_stream;
@@ -105,6 +112,30 @@ public:
             }
             metrics["gpus"] = gpu_metrics_json;
         }
+
+        // Add System Info (CPU/Memory/OS) if available
+        if (has_system_info) {
+            metrics["cpu"] = {
+                {"vendor", system_info.cpu.vendor},
+                {"model", system_info.cpu.model},
+                {"cores", system_info.cpu.cores},
+                {"logical_processors", system_info.cpu.logical_processors},
+                {"frequency_mhz", system_info.cpu.frequency_mhz}
+            };
+            
+            metrics["memory"] = {
+                {"total_bytes", system_info.memory.total_bytes},
+                {"available_bytes", system_info.memory.available_bytes},
+                {"usage_percent", system_info.memory.usage_percent}
+            };
+
+            metrics["os"] = {
+                {"name", system_info.os.name},
+                {"version", system_info.os.version},
+                {"architecture", system_info.os.architecture},
+                {"hostname", system_info.os.hostname}
+            };
+        }
         
         // Only include metrics if it has content
         if (!metrics.empty()) {
@@ -150,6 +181,7 @@ public:
             0);
 
         if (!hSession) {
+            std::cerr << "WinHttpOpen failed with error: " << GetLastError() << std::endl;
             return common::Status::ERROR_NETWORK;
         }
 
@@ -160,6 +192,7 @@ public:
             0);
 
         if (!hConnect) {
+            std::cerr << "WinHttpConnect failed with error: " << GetLastError() << std::endl;
             WinHttpCloseHandle(hSession);
             return common::Status::ERROR_NETWORK;
         }
@@ -175,6 +208,7 @@ public:
             flags);
 
         if (!hRequest) {
+            std::cerr << "WinHttpOpenRequest failed with error: " << GetLastError() << std::endl;
             WinHttpCloseHandle(hConnect);
             WinHttpCloseHandle(hSession);
             return common::Status::ERROR_NETWORK;
@@ -201,6 +235,10 @@ public:
             json_data.length(),
             0);
 
+        if (!result) {
+            std::cerr << "WinHttpSendRequest failed with error: " << GetLastError() << std::endl;
+        }
+
         common::Status status = common::Status::ERROR_NETWORK;
         if (result && WinHttpReceiveResponse(hRequest, NULL)) {
             DWORD statusCode = 0;
@@ -215,7 +253,11 @@ public:
 
             if (statusCode >= 200 && statusCode < 300) {
                 status = common::Status::OK;
+            } else {
+                std::cerr << "Heartbeat HTTP Error: " << statusCode << std::endl;
             }
+        } else if (result) {
+            std::cerr << "WinHttpReceiveResponse failed with error: " << GetLastError() << std::endl;
         }
 
         WinHttpCloseHandle(hRequest);
@@ -285,10 +327,10 @@ public:
             // Wait for interval or until stopped
             auto start = std::chrono::steady_clock::now();
             while (running.load()) {
-                auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
+                auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::steady_clock::now() - start).count();
                 
-                if (elapsed >= interval_seconds) {
+                if (elapsed >= (interval_seconds * 1000)) {
                     break;
                 }
                 
@@ -349,6 +391,12 @@ void HeartbeatClient::updateGPURates(const std::vector<GPURateInfo>& gpuRates) {
 void HeartbeatClient::updateGPUMetrics(const std::vector<common::GPUInfo>& gpuMetrics) {
     std::lock_guard<std::mutex> lock(pImpl->mutex);
     pImpl->gpu_metrics = gpuMetrics;
+}
+
+void HeartbeatClient::updateSystemInfo(const common::SystemInfo& sysInfo) {
+    std::lock_guard<std::mutex> lock(pImpl->mutex);
+    pImpl->system_info = sysInfo;
+    pImpl->has_system_info = true;
 }
 
 } // namespace heartbeat

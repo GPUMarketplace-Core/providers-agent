@@ -22,6 +22,7 @@ add_subdirectory(src/gpu_probe)
 add_subdirectory(src/heartbeat)
 add_subdirectory(src/credential_manager)
 add_subdirectory(src/storage)
+add_subdirectory(src/job_runner)
 add_subdirectory(src/common)
 
 # GUI Application

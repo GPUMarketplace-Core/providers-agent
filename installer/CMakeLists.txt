@@ -4,10 +4,10 @@ if(WIN32)
     find_program(INNO_SETUP_COMPILER
         NAMES iscc ISCC
         PATHS
-            "$ENV{ProgramFiles}\Inno Setup 6"
-            "$ENV{ProgramFiles(x86)}\Inno Setup 6"
-            "$ENV{ProgramFiles}\Inno Setup 5"
-            "$ENV{ProgramFiles(x86)}\Inno Setup 5"
+            "$ENV{ProgramFiles}/Inno Setup 6"
+            "C:/Program Files (x86)/Inno Setup 6"
+            "$ENV{ProgramFiles}/Inno Setup 5"
+            "C:/Program Files (x86)/Inno Setup 5"
         DOC "Inno Setup Compiler"
     )
 

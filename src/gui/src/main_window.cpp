@@ -74,7 +74,7 @@ public:
         QHBoxLayout* statusLayout = new QHBoxLayout(statusBar);
         
         connectionStatus = new QLabel("Connected");
-        connectionStatus->setStyleSheet("font-weight: bold; color: green; font-size: 14px;");
+        // connectionStatus->setStyleSheet("QLabel { font-weight: bold; font-size: 14px; color: #008000; }");
         machineName = new QLabel("Machine: " + QString::fromStdString(getMachineName()));
         agentVersion = new QLabel("Agent v1.2.3");
         lastSync = new QLabel("Last sync: 2m ago");
@@ -203,66 +203,80 @@ void MainWindow::show() {
 }
 
 void MainWindow::updateSystemInfo(const std::string& json_text) {
-    // System info can be logged if needed
-    pImpl->addLog("System info updated");
+    QMetaObject::invokeMethod(pImpl->window, [this, json_text]() {
+        // System info can be logged if needed
+        pImpl->addLog("System info updated");
+    }, Qt::QueuedConnection);
 }
 
 void MainWindow::updateHeartbeatStatus(bool running, int count, const std::string& lastMessage, bool lastSuccess) {
-    pImpl->heartbeatRunning = running;
-    pImpl->heartbeatCount = count;
-    
-    if (running) {
-        pImpl->connectionStatus->setText("Connected");
-        pImpl->connectionStatus->setStyleSheet("font-weight: bold; color: green; font-size: 14px;");
-    } else {
-        pImpl->connectionStatus->setText("Disconnected");
-        pImpl->connectionStatus->setStyleSheet("font-weight: bold; color: red; font-size: 14px;");
-    }
-    
-    if (!lastMessage.empty()) {
-        pImpl->addLog(lastMessage);
-    }
+    QMetaObject::invokeMethod(pImpl->window, [this, running, count, lastMessage, lastSuccess]() {
+        pImpl->heartbeatRunning = running;
+        pImpl->heartbeatCount = count;
+        
+        if (running) {
+            pImpl->connectionStatus->setText("Connected");
+            // pImpl->connectionStatus->setStyleSheet("QLabel { font-weight: bold; font-size: 14px; color: #008000; }");
+        } else {
+            pImpl->connectionStatus->setText("Disconnected");
+            // pImpl->connectionStatus->setStyleSheet("QLabel { font-weight: bold; font-size: 14px; color: #ff0000; }");
+        }
+        
+        if (!lastMessage.empty()) {
+            pImpl->addLog(lastMessage);
+        }
+    }, Qt::QueuedConnection);
 }
 
 void MainWindow::updateConnectionStatus(bool connected, const std::string& machineName, const std::string& agentVersion, int lastSyncMinutes) {
-    if (connected) {
-        pImpl->connectionStatus->setText("Connected");
-        pImpl->connectionStatus->setStyleSheet("font-weight: bold; color: green; font-size: 14px;");
-    } else {
-        pImpl->connectionStatus->setText("Disconnected");
-        pImpl->connectionStatus->setStyleSheet("font-weight: bold; color: red; font-size: 14px;");
-    }
-    
-    if (!machineName.empty()) {
-        pImpl->machineName->setText(QString("Machine: %1").arg(QString::fromStdString(machineName)));
-    }
-    
-    if (!agentVersion.empty()) {
-        pImpl->agentVersion->setText(QString("Agent %1").arg(QString::fromStdString(agentVersion)));
-    }
-    
-    pImpl->lastSyncMinutes = lastSyncMinutes;
-    pImpl->lastSync->setText(QString("Last sync: %1m ago").arg(lastSyncMinutes));
+    QMetaObject::invokeMethod(pImpl->window, [this, connected, machineName, agentVersion, lastSyncMinutes]() {
+        if (connected) {
+            pImpl->connectionStatus->setText("Connected");
+            // pImpl->connectionStatus->setStyleSheet("QLabel { font-weight: bold; font-size: 14px; color: #008000; }");
+        } else {
+            pImpl->connectionStatus->setText("Disconnected");
+            // pImpl->connectionStatus->setStyleSheet("QLabel { font-weight: bold; font-size: 14px; color: #ff0000; }");
+        }
+        
+        if (!machineName.empty()) {
+            pImpl->machineName->setText(QString("Machine: %1").arg(QString::fromStdString(machineName)));
+        }
+        
+        if (!agentVersion.empty()) {
+            pImpl->agentVersion->setText(QString("Agent %1").arg(QString::fromStdString(agentVersion)));
+        }
+        
+        pImpl->lastSyncMinutes = lastSyncMinutes;
+        //pImpl->lastSync->setText(QString("Last sync: %1m ago").arg(lastSyncMinutes));
+    }, Qt::QueuedConnection);
 }
 
 void MainWindow::updateGPUs(const std::vector<GPUInfo>& gpus) {
-    // GPU display functionality - can be implemented later if needed
-    // For now, we're showing system info instead
+    QMetaObject::invokeMethod(pImpl->window, [this, gpus]() {
+        // GPU display functionality - can be implemented later if needed
+        // For now, we're showing system info instead
+    }, Qt::QueuedConnection);
 }
 
 void MainWindow::addLog(const std::string& logEntry) {
-    pImpl->addLog(logEntry);
+    QMetaObject::invokeMethod(pImpl->window, [this, logEntry]() {
+        pImpl->addLog(logEntry);
+    }, Qt::QueuedConnection);
 }
 
 void MainWindow::setGoOnline(bool online) {
-    pImpl->acceptingJobsCheckbox->setChecked(online);
+    QMetaObject::invokeMethod(pImpl->window, [this, online]() {
+        pImpl->acceptingJobsCheckbox->setChecked(online);
+    }, Qt::QueuedConnection);
 }
 
 void MainWindow::updateSystemInfoDisplay(const std::string& cpuInfo, const std::string& memoryInfo) {
-    QString info = QString("CPU Information:\n%1\n\nMemory Information:\n%2")
-        .arg(QString::fromStdString(cpuInfo))
-        .arg(QString::fromStdString(memoryInfo));
-    pImpl->systemInfoText->setPlainText(info);
+    QMetaObject::invokeMethod(pImpl->window, [this, cpuInfo, memoryInfo]() {
+        QString info = QString("CPU Information:\n%1\n\nMemory Information:\n%2")
+            .arg(QString::fromStdString(cpuInfo))
+            .arg(QString::fromStdString(memoryInfo));
+        pImpl->systemInfoText->setPlainText(info);
+    }, Qt::QueuedConnection);
 }
 
 int MainWindow::exec() {

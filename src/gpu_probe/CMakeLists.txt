@@ -9,6 +9,6 @@ if(WIN32)
 
     target_link_libraries(gpu_probe
         PUBLIC common
-        PRIVATE nlohmann_json::nlohmann_json Gdi32.lib
+        PRIVATE nlohmann_json::nlohmann_json User32.lib
     )
 endif()

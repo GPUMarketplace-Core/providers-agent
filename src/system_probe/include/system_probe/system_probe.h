@@ -20,6 +20,9 @@ public:
     // Export system info as JSON
     nlohmann::json toJson() const;
 
+    // Get unique system identifier (MachineGuid/HWID)
+    std::string getUniqueIdentifier();
+
 private:
     // TODO: Implement using WinAPI (GetSystemInfo, GlobalMemoryStatusEx)
     class Impl;

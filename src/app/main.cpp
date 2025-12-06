@@ -11,6 +11,8 @@
 #include "credential_manager/credential_manager.h"
 #include "storage/json_storage.h"
 #include "gui/main_window.h"
+#include "job_runner/job_runner.h"
+#include "job_runner/job_manager.h"
 
 using namespace providers_agent;
 
@@ -37,10 +39,10 @@ int main(int argc, char* argv[]) {
         std::cout << "Failed to initialize GPU Probe" << std::endl;
     }
 
-    std::cout << "Providers Agent Ready" << std::endl;
-    return 0;
+    // Initialize JobRunner to check for Blender
+    job_runner::JobRunner jobRunner;
     // Check for required environment variable
-    const char* api_endpoint = std::getenv("HEART_BEAT_API_ENDPOINT");
+    const char* api_endpoint = "http://localhost:3000";
     if (!api_endpoint) {
         std::cerr << "Error: HEART_BEAT_API_ENDPOINT environment variable not set" << std::endl;
         std::cerr << "Example: export HEART_BEAT_API_ENDPOINT=https://api.example.com" << std::endl;
@@ -62,25 +64,40 @@ int main(int argc, char* argv[]) {
         }
         std::cout << "✓ Retrieved OAuth token from credential manager" << std::endl;
     } else {
-        // For demo/testing: use a dummy token
-        // In production, this should require a real token
-        oauthToken = "demo-oauth-token-for-testing";
-        usingDemoToken = true;
-        std::cout << "⚠️  No OAuth token found. Using demo token for testing." << std::endl;
-        std::cout << "   Note: For production, store a real token using credential manager." << std::endl;
+        // Prompt for token
+        std::cout << "\n=== Authentication Required ===" << std::endl;
+        std::cout << "1. Go to " << api_endpoint << " and login/signup as a Provider." << std::endl;
+        std::cout << "2. Copy your authentication token (from the dashboard or profile)." << std::endl;
+        std::cout << "3. Paste the token below:" << std::endl;
+        std::cout << "> ";
+        
+        std::cin >> oauthToken;
+        
+        if (!oauthToken.empty()) {
+            std::cout << "✓ Token received!" << std::endl;
+            credManager.storeCredential("oauth_token", oauthToken);
+        } else {
+            std::cerr << "✗ No token provided." << std::endl;
+            return 1;
+        }
     }
-
-    // TODO: Get node ID from configuration or user input
-    // For now, using a placeholder - in production this should come from config file or registration
-    std::string nodeId = "123e4567-e89b-12d3-a456-426614174000";
-    std::cout << "Using Node ID: " << nodeId << std::endl;
 
     // Initialize System Probe
     system_probe::SystemProbe systemProbe;
     systemProbe.initialize();
+
+    // Node ID configuration (Auto-generated from Machine ID)
+    std::string nodeId = systemProbe.getUniqueIdentifier();
+    std::cout << "Using Node ID (Hardware Fixed): " << nodeId << std::endl;
     
     // Initialize Heartbeat Client
     heartbeat::HeartbeatClient heartbeatClient(nodeId, oauthToken);
+    // Set heartbeat interval to 2 seconds
+    heartbeatClient.setInterval(2);
+
+    // Initialize Job Manager
+    job_runner::JobManager jobManager(nodeId, oauthToken);
+    jobManager.setInterval(5); // Poll every 5 seconds
     
     // TODO: Initialize GPU Probe when implemented
     // gpu_probe::GPUProbe gpuProbe;
@@ -103,6 +120,12 @@ int main(int argc, char* argv[]) {
     gui::MainWindow mainWindow;
     mainWindow.initialize();
     
+    // Connect logger
+    jobManager.setLogCallback([&mainWindow](const std::string& msg) {
+        mainWindow.addLog(msg);
+        std::cout << msg << std::endl;
+    });
+
     // Setup GUI callbacks
     int heartbeatCount = 0;
     bool heartbeatRunning = false;
@@ -134,24 +157,27 @@ int main(int argc, char* argv[]) {
         
         mainWindow.updateSystemInfoDisplay(cpuInfo.str(), memoryInfo.str());
         mainWindow.addLog("System information loaded");
+
+        // Pass initial system info to heartbeat client
+        heartbeatClient.updateSystemInfo(sysInfo);
     } else {
         mainWindow.updateSystemInfoDisplay("Failed to load CPU information", "Failed to load memory information");
         mainWindow.addLog("Failed to load system information");
     }
     
     // Go Online toggle callback - controls heartbeat
-    mainWindow.onGoOnlineChanged = [&heartbeatClient, &heartbeatCount, &heartbeatRunning, &mainWindow](bool goOnline) {
+    mainWindow.onGoOnlineChanged = [&](bool goOnline) {
         if (goOnline) {
             // Start heartbeat
-            auto heartbeatCallback = [&heartbeatCount, &mainWindow](common::Status status) {
+            auto heartbeatCallback = [&](common::Status status) {
                 heartbeatCount++;
                 std::string message;
                 bool success = false;
                 
                 if (status == common::Status::OK) {
-                    message = "Heartbeat #" + std::to_string(heartbeatCount) + " - SUCCESS";
                     success = true;
-                    std::cout << "✓ " << message << std::endl;
+                    // message = "Heartbeat #" + std::to_string(heartbeatCount) + " - SUCCESS";
+                    // std::cout << "✓ " << message << std::endl;
                 } else {
                     message = "Heartbeat #" + std::to_string(heartbeatCount) + " - FAILED (Status: " + std::to_string(static_cast<int>(status)) + ")";
                     success = false;
@@ -170,6 +196,10 @@ int main(int argc, char* argv[]) {
                 mainWindow.updateConnectionStatus(true, "", "v1.2.3", 0);
                 mainWindow.addLog("Go Online: ENABLED - Heartbeat service started");
                 std::cout << "✓ Go Online: Heartbeat service started" << std::endl;
+
+                // Start Job Manager
+                jobManager.start();
+                mainWindow.addLog("Job Manager started");
             } else {
                 mainWindow.updateHeartbeatStatus(false, 0, "Failed to start heartbeat", false);
                 mainWindow.addLog("Go Online: FAILED to start heartbeat service");
@@ -185,6 +215,10 @@ int main(int argc, char* argv[]) {
             mainWindow.updateConnectionStatus(false, "", "v1.2.3", 0);
             mainWindow.addLog("Go Online: DISABLED - Heartbeat service stopped");
             std::cout << "✓ Go Online: Heartbeat service stopped" << std::endl;
+
+            // Stop Job Manager
+            jobManager.stop();
+            mainWindow.addLog("Job Manager stopped");
         }
     };
     

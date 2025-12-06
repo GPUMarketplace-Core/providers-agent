@@ -22,6 +22,14 @@ struct CPUInfo {
     uint32_t cores;
     uint32_t logical_processors;
     uint64_t frequency_mhz;
+    std::string model;  // New field for CPU model name
+};
+
+struct OSInfo {
+    std::string name;
+    std::string version;
+    std::string architecture;
+    std::string hostname;
 };
 
 struct MemoryInfo {
@@ -41,6 +49,7 @@ struct GPUInfo {
 struct SystemInfo {
     CPUInfo cpu;
     MemoryInfo memory;
+    OSInfo os;
 };
 
 } // namespace common

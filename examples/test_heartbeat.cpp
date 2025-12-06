@@ -10,16 +10,22 @@ int main() {
     std::cout << "=== Heartbeat Client Test ===" << std::endl;
     
     // Check for required environment variable
-    const char* api_endpoint = std::getenv("HEART_BEAT_API_ENDPOINT");
+    const char* api_endpoint = "http://localhost:3000";
     if (!api_endpoint) {
         std::cerr << "Error: HEART_BEAT_API_ENDPOINT environment variable not set" << std::endl;
         std::cerr << "Example: export HEART_BEAT_API_ENDPOINT=https://api.example.com" << std::endl;
         return 1;
     }
     
-    // Node ID and OAuth token (in production, these would come from config/credentials)
-    std::string nodeId = "123e4567-e89b-12d3-a456-426614174000";  // Example node ID
-    std::string oauthToken = "your-oauth-token-here";  // In production, retrieve from credential manager
+    // Node ID and OAuth token
+    std::string nodeId;
+    std::string oauthToken;
+
+    std::cout << "Enter Node ID: ";
+    std::cin >> nodeId;
+    
+    std::cout << "Enter OAuth Token: ";
+    std::cin >> oauthToken;
     
     std::cout << "Creating heartbeat client..." << std::endl;
     std::cout << "API Endpoint: " << api_endpoint << std::endl;
@@ -75,9 +81,12 @@ int main() {
     std::cout << "Heartbeat client running... (will run for 90 seconds to see multiple heartbeats)" << std::endl;
     std::cout << "Press Ctrl+C to stop early" << std::endl;
     
-    // Run for 90 seconds (should send ~3 heartbeats at 30s interval)
-    std::this_thread::sleep_for(std::chrono::seconds(90));
+    // Run indefinitely until interrupted
+    while (true) {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
     
+    // Unreachable unless logic changes
     std::cout << "\nStopping heartbeat client..." << std::endl;
     client.stop();
     
