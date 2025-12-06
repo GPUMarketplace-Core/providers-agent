@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "concurrently \"npm run dev:react\" \"npm run dev:electron\"",
     "dev:react": "vite",
-    "dev:electron": "wait-on http://localhost:5173 && cross-env NODE_ENV=development electron .",
+    "dev:electron": "npm run build:electron && node -e \"setTimeout(() => process.exit(0), 2000)\" && cross-env NODE_ENV=development electron .",
     "build": "tsc && vite build && electron-builder",
     "build:react": "tsc && vite build",
     "build:electron": "tsc -p tsconfig.electron.json",

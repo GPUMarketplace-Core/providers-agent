@@ -1,7 +1,9 @@
 import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } from 'electron';
 import path from 'path';
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, ChildProcess, execSync } from 'child_process';
 import Store from 'electron-store';
+import * as os from 'os';
+import * as fs from 'fs';
 
 const store = new Store();
 let mainWindow: BrowserWindow | null = null;
@@ -64,6 +66,17 @@ const appState: AppState = {
   logs: [],
 };
 
+// Get the path to the C++ backend build directory
+function getBackendPath(): string {
+  if (isDev) {
+    // In development, the backend is in the parent directory
+    return path.join(__dirname, '..', '..', '..', 'build', 'bin');
+  } else {
+    // In production, it's in the resources folder
+    return path.join(process.resourcesPath, 'backend', 'bin');
+  }
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -81,7 +94,27 @@ function createWindow() {
   });
 
   if (isDev) {
-    mainWindow.loadURL('http://localhost:5173');
+    // Try multiple ports in case Vite picked a different one
+    const tryPorts = [5173, 5174, 5175, 5176, 5177];
+    let loaded = false;
+    
+    const tryLoadUrl = async (portIndex: number) => {
+      if (portIndex >= tryPorts.length || loaded) return;
+      
+      const port = tryPorts[portIndex];
+      const url = `http://localhost:${port}`;
+      
+      try {
+        await mainWindow?.loadURL(url);
+        loaded = true;
+        addLog(`Connected to Vite dev server on port ${port}`);
+      } catch (error) {
+        // Try next port
+        tryLoadUrl(portIndex + 1);
+      }
+    };
+    
+    tryLoadUrl(0);
     mainWindow.webContents.openDevTools();
   } else {
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
@@ -308,48 +341,122 @@ async function pollForJobs() {
   }
 }
 
-// Get system info from C++ backend
+// Get real system info using Node.js os module and C++ backend
 async function getSystemInfo(): Promise<SystemInfo> {
-  // TODO: Call actual C++ system probe
-  // For now, return mock data
-  const mockInfo: SystemInfo = {
+  const cpus = os.cpus();
+  const totalMem = os.totalmem();
+  const freeMem = os.freemem();
+  const usedMem = totalMem - freeMem;
+  const memUsagePercent = Math.round((usedMem / totalMem) * 100);
+
+  // Get CPU info
+  const cpuModel = cpus[0]?.model || 'Unknown CPU';
+  const cpuVendor = cpuModel.includes('Intel') ? 'Intel' : 
+                    cpuModel.includes('AMD') ? 'AMD' : 
+                    cpuModel.includes('Apple') ? 'Apple' : 'Unknown';
+  const cpuFrequency = cpus[0]?.speed || 0;
+
+  // Get OS info
+  const platform = os.platform();
+  const osName = platform === 'win32' ? 'Windows' :
+                 platform === 'darwin' ? 'macOS' :
+                 platform === 'linux' ? 'Linux' : platform;
+  const osVersion = os.release();
+  const arch = os.arch();
+  const hostname = os.hostname();
+
+  // Get GPU info from C++ backend's gpu_info.json
+  let gpus: SystemInfo['gpus'] = [];
+  try {
+    const backendPath = getBackendPath();
+    const gpuInfoPath = path.join(backendPath, 'gpu_info.json');
+    
+    if (fs.existsSync(gpuInfoPath)) {
+      const gpuData = JSON.parse(fs.readFileSync(gpuInfoPath, 'utf-8'));
+      if (gpuData.gpus && Array.isArray(gpuData.gpus)) {
+        gpus = gpuData.gpus.map((gpu: any) => ({
+          name: gpu.name || 'Unknown GPU',
+          vram_total_bytes: gpu.vram_total_bytes || 0,
+          vram_used_bytes: gpu.vram_used_bytes || 0,
+          temperature_celsius: gpu.temperature_celsius || 0,
+          utilization_percent: gpu.utilization_percent || 0,
+        }));
+      }
+      addLog(`Loaded GPU info from ${gpuInfoPath}`);
+    } else {
+      addLog(`GPU info file not found at ${gpuInfoPath}, using fallback detection`);
+      // Fallback: Try to detect GPU using system commands on Windows
+      if (platform === 'win32') {
+        try {
+          const wmicOutput = execSync('wmic path win32_VideoController get name,AdapterRAM /format:csv', { encoding: 'utf-8' });
+          const lines = wmicOutput.trim().split('\n').filter(line => line.trim() && !line.includes('Node,'));
+          
+          for (const line of lines) {
+            const parts = line.split(',');
+            if (parts.length >= 3) {
+              const adapterRam = parseInt(parts[1]) || 0;
+              const gpuName = parts[2]?.trim() || 'Unknown GPU';
+              if (gpuName && gpuName !== 'Name') {
+                gpus.push({
+                  name: gpuName,
+                  vram_total_bytes: adapterRam,
+                  vram_used_bytes: 0,
+                  temperature_celsius: 0,
+                  utilization_percent: 0,
+                });
+              }
+            }
+          }
+          addLog(`Detected ${gpus.length} GPU(s) using WMIC`);
+        } catch (e) {
+          addLog(`Failed to detect GPU using WMIC: ${e}`);
+        }
+      }
+    }
+  } catch (error) {
+    addLog(`Error loading GPU info: ${error}`);
+  }
+
+  // If no GPUs found, add a placeholder
+  if (gpus.length === 0) {
+    gpus.push({
+      name: 'No GPU detected',
+      vram_total_bytes: 0,
+      vram_used_bytes: 0,
+      temperature_celsius: 0,
+      utilization_percent: 0,
+    });
+  }
+
+  const systemInfo: SystemInfo = {
     cpu: {
-      vendor: 'Apple',
-      model: 'Apple M1',
-      cores: 8,
-      logical_processors: 8,
-      frequency_mhz: 3200,
+      vendor: cpuVendor,
+      model: cpuModel,
+      cores: cpus.length > 0 ? Math.floor(cpus.length / 2) : 1, // Physical cores (approximate)
+      logical_processors: cpus.length,
+      frequency_mhz: cpuFrequency,
     },
     memory: {
-      total_bytes: 17179869184, // 16 GB
-      available_bytes: 8589934592, // 8 GB
-      usage_percent: 50,
+      total_bytes: totalMem,
+      available_bytes: freeMem,
+      usage_percent: memUsagePercent,
     },
-    gpus: [
-      {
-        name: 'Apple M1 GPU',
-        vram_total_bytes: 0,
-        vram_used_bytes: 0,
-        temperature_celsius: 0,
-        utilization_percent: 0,
-      },
-    ],
+    gpus,
     os: {
-      name: 'macOS',
-      version: '14.0',
-      architecture: 'arm64',
-      hostname: 'MacBook-Pro',
+      name: osName,
+      version: osVersion,
+      architecture: arch,
+      hostname: hostname,
     },
   };
 
-  return mockInfo;
+  return systemInfo;
 }
 
 // IPC Handlers
 ipcMain.handle('get-system-info', async () => {
-  if (!appState.systemInfo) {
-    appState.systemInfo = await getSystemInfo();
-  }
+  // Always refresh system info
+  appState.systemInfo = await getSystemInfo();
   return appState.systemInfo;
 });
 
@@ -412,7 +519,10 @@ app.whenReady().then(async () => {
   // Load system info
   appState.systemInfo = await getSystemInfo();
   addLog('GPU Marketplace Provider Agent started');
-  addLog(`System info loaded: ${appState.systemInfo.cpu.model}, ${appState.systemInfo.memory.total_bytes / 1024 / 1024 / 1024}GB RAM`);
+  addLog(`System info loaded: ${appState.systemInfo.cpu.model}, ${(appState.systemInfo.memory.total_bytes / 1024 / 1024 / 1024).toFixed(1)}GB RAM`);
+  if (appState.systemInfo.gpus.length > 0) {
+    addLog(`GPU detected: ${appState.systemInfo.gpus.map(g => g.name).join(', ')}`);
+  }
 
   createWindow();
   createTray();
@@ -438,10 +548,10 @@ app.on('before-quit', () => {
   stopHeartbeat();
   stopJobPolling();
 
-  if (heartbeatProcess) {
-    heartbeatProcess.kill();
+  if (heartbeatProcess !== null) {
+    (heartbeatProcess as ChildProcess).kill();
   }
-  if (jobManagerProcess) {
-    jobManagerProcess.kill();
+  if (jobManagerProcess !== null) {
+    (jobManagerProcess as ChildProcess).kill();
   }
 });
