@@ -29,12 +29,32 @@ export interface SystemInfo {
   nodeId?: string;
 }
 
+export interface Job {
+  id: string;
+  status: 'queued' | 'running' | 'completed' | 'failed';
+  config_ref: string;
+  created_at: string;
+  completed_at?: string;
+  failure_reason?: string;
+}
+
 export interface AppState {
   isOnline: boolean;
   apiEndpoint: string;
   oauthToken: string | null;
   heartbeatInterval: number;
   jobPollingInterval: number;
+  nodeId: string;
+  heartbeatCount: number;
+  jobsCompleted: number;
+  jobsFailed: number;
+  currentJob: Job | null;
+  gpuRates: Array<{ gpu_index: number; hourly_price_cents: number }>;
+}
+
+export interface GPURate {
+  gpu_index: number;
+  hourly_price_cents: number;
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -42,6 +62,7 @@ export interface AppState {
 contextBridge.exposeInMainWorld('electronAPI', {
   // System info
   getSystemInfo: (): Promise<SystemInfo> => ipcRenderer.invoke('get-system-info'),
+  refreshSystemInfo: (): Promise<SystemInfo> => ipcRenderer.invoke('refresh-system-info'),
 
   // App state
   getAppState: (): Promise<AppState> => ipcRenderer.invoke('get-app-state'),
@@ -54,6 +75,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('set-api-endpoint', endpoint),
   setIntervals: (intervals: { heartbeat: number; jobPolling: number }): Promise<{ success: boolean }> =>
     ipcRenderer.invoke('set-intervals', intervals),
+  setGpuRates: (rates: GPURate[]): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke('set-gpu-rates', rates),
 
   // Logs
   getLogs: (): Promise<string[]> => ipcRenderer.invoke('get-logs'),
@@ -69,11 +92,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onAuthRequired: (callback: () => void) => {
     ipcRenderer.on('auth-required', () => callback());
   },
-  onHeartbeatSent: (callback: (data: { success: boolean; error?: any }) => void) => {
+  onHeartbeatSent: (callback: (data: { success: boolean; count?: number; error?: any }) => void) => {
     ipcRenderer.on('heartbeat-sent', (_event, data) => callback(data));
   },
-  onJobsPolled: (callback: (data: { jobs: any[] }) => void) => {
+  onJobsPolled: (callback: (data: { jobs: Job[] }) => void) => {
     ipcRenderer.on('jobs-polled', (_event, data) => callback(data));
+  },
+  onJobStarted: (callback: (job: Job) => void) => {
+    ipcRenderer.on('job-started', (_event, job) => callback(job));
+  },
+  onJobCompleted: (callback: (data: { jobId: string; success: boolean; error?: string }) => void) => {
+    ipcRenderer.on('job-completed', (_event, data) => callback(data));
   },
 
   // Remove listeners
@@ -87,18 +116,22 @@ declare global {
   interface Window {
     electronAPI: {
       getSystemInfo: () => Promise<SystemInfo>;
+      refreshSystemInfo: () => Promise<SystemInfo>;
       getAppState: () => Promise<AppState>;
       toggleOnline: () => Promise<{ isOnline: boolean }>;
       setOAuthToken: (token: string) => Promise<{ success: boolean }>;
       setApiEndpoint: (endpoint: string) => Promise<{ success: boolean }>;
       setIntervals: (intervals: { heartbeat: number; jobPolling: number }) => Promise<{ success: boolean }>;
+      setGpuRates: (rates: GPURate[]) => Promise<{ success: boolean }>;
       getLogs: () => Promise<string[]>;
       clearLogs: () => Promise<{ success: boolean }>;
       onStatusChanged: (callback: (data: { isOnline: boolean }) => void) => void;
       onLogUpdate: (callback: (log: string) => void) => void;
       onAuthRequired: (callback: () => void) => void;
-      onHeartbeatSent: (callback: (data: { success: boolean; error?: any }) => void) => void;
-      onJobsPolled: (callback: (data: { jobs: any[] }) => void) => void;
+      onHeartbeatSent: (callback: (data: { success: boolean; count?: number; error?: any }) => void) => void;
+      onJobsPolled: (callback: (data: { jobs: Job[] }) => void) => void;
+      onJobStarted: (callback: (job: Job) => void) => void;
+      onJobCompleted: (callback: (data: { jobId: string; success: boolean; error?: string }) => void) => void;
       removeAllListeners: (channel: string) => void;
     };
   }
