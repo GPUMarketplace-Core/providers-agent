@@ -4,6 +4,7 @@ const Logs = () => {
   const [logs, setLogs] = useState<string[]>([]);
   const [filter, setFilter] = useState('');
   const [autoScroll, setAutoScroll] = useState(true);
+  const [levelFilter, setLevelFilter] = useState<'all' | 'error' | 'success' | 'info'>('all');
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -35,90 +36,154 @@ const Logs = () => {
     setLogs([]);
   };
 
-  const filteredLogs = logs.filter((log) =>
-    log.toLowerCase().includes(filter.toLowerCase())
-  );
+  const getLogLevel = (log: string): 'error' | 'success' | 'info' => {
+    if (log.includes('❌') || log.includes('ERROR') || log.includes('failed') || log.includes('Failed')) return 'error';
+    if (log.includes('✅') || log.includes('✓') || log.includes('success') || log.includes('COMPLETED')) return 'success';
+    return 'info';
+  };
 
-  const getLogColor = (log: string) => {
-    if (log.includes('ERROR') || log.includes('failed')) return 'text-red-600';
-    if (log.includes('WARNING')) return 'text-yellow-600';
-    if (log.includes('success')) return 'text-green-600';
-    return 'text-gray-700';
+  const filteredLogs = logs.filter((log) => {
+    const matchesText = log.toLowerCase().includes(filter.toLowerCase());
+    const matchesLevel = levelFilter === 'all' || getLogLevel(log) === levelFilter;
+    return matchesText && matchesLevel;
+  });
+
+  const getLogStyle = (log: string) => {
+    const level = getLogLevel(log);
+    switch (level) {
+      case 'error':
+        return 'text-red-400 bg-red-500/5';
+      case 'success':
+        return 'text-emerald-400 bg-emerald-500/5';
+      default:
+        return 'text-slate-300';
+    }
+  };
+
+  const extractTimestamp = (log: string) => {
+    const match = log.match(/\[(.*?)\]/);
+    if (match) {
+      try {
+        const date = new Date(match[1]);
+        return date.toLocaleTimeString();
+      } catch {
+        return '';
+      }
+    }
+    return '';
+  };
+
+  const extractMessage = (log: string) => {
+    return log.replace(/\[.*?\]\s*/, '');
   };
 
   return (
-    <div className="space-y-6 animate-fade-in-up">
+    <div className="space-y-6 animate-fade-in h-full flex flex-col">
       {/* Header */}
-      <div className="glass rounded-3xl p-8 shadow-xl">
-        <div className="flex items-start justify-between">
-          <div>
-            <h2 className="text-3xl font-bold gradient-text mb-2">Logs</h2>
-            <p className="text-gray-600">Real-time system and job logs</p>
-          </div>
-          <div className="flex gap-3">
-            <button
-              onClick={() => setAutoScroll(!autoScroll)}
-              className={`px-4 py-2 rounded-xl font-medium transition-all duration-300 ${
-                autoScroll
-                  ? 'bg-violet-100 text-violet-700'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              {autoScroll ? '📌 Auto-scroll ON' : '📌 Auto-scroll OFF'}
-            </button>
-            <button
-              onClick={handleClearLogs}
-              className="px-4 py-2 bg-red-100 text-red-700 hover:bg-red-200 rounded-xl font-medium transition-all duration-300"
-            >
-              🗑️ Clear Logs
-            </button>
-          </div>
+      <div className="flex items-start justify-between flex-shrink-0">
+        <div>
+          <h2 className="text-2xl font-bold text-white">Logs</h2>
+          <p className="text-slate-400 text-sm mt-1">Real-time system and job activity</p>
         </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setAutoScroll(!autoScroll)}
+            className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 border ${
+              autoScroll
+                ? 'bg-violet-500/20 text-violet-400 border-violet-500/30'
+                : 'bg-slate-800 text-slate-400 border-white/10 hover:border-white/20'
+            }`}
+          >
+            {autoScroll ? '📌 Auto-scroll ON' : '📌 Auto-scroll OFF'}
+          </button>
+          <button
+            onClick={handleClearLogs}
+            className="px-4 py-2 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-xl text-sm font-medium transition-all duration-200 border border-red-500/20"
+          >
+            🗑️ Clear
+          </button>
+        </div>
+      </div>
 
-        {/* Filter */}
-        <div className="mt-6">
+      {/* Filters */}
+      <div className="flex gap-3 flex-shrink-0">
+        <div className="flex-1 relative">
+          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">🔍</span>
           <input
             type="text"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            placeholder="🔍 Filter logs..."
-            className="w-full px-4 py-3 text-sm border border-gray-300 rounded-xl focus:ring-2 focus:ring-violet-500 focus:border-transparent outline-none transition-all bg-white"
+            placeholder="Filter logs..."
+            className="w-full pl-10 pr-4 py-2.5 text-sm bg-slate-800/50 border border-white/10 rounded-xl focus:ring-2 focus:ring-violet-500 focus:border-transparent outline-none transition-all text-white placeholder-slate-500"
           />
+        </div>
+        <div className="flex bg-slate-800/50 rounded-xl border border-white/10 p-1">
+          {(['all', 'info', 'success', 'error'] as const).map((level) => (
+            <button
+              key={level}
+              onClick={() => setLevelFilter(level)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                levelFilter === level
+                  ? level === 'error'
+                    ? 'bg-red-500/20 text-red-400'
+                    : level === 'success'
+                    ? 'bg-emerald-500/20 text-emerald-400'
+                    : 'bg-violet-500/20 text-violet-400'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              {level.charAt(0).toUpperCase() + level.slice(1)}
+            </button>
+          ))}
         </div>
       </div>
 
       {/* Logs Display */}
-      <div className="glass rounded-3xl p-6 shadow-xl">
-        <div className="bg-gray-900 rounded-2xl p-6 h-[600px] overflow-y-auto font-mono text-sm">
+      <div className="flex-1 min-h-0 rounded-2xl bg-slate-900/80 border border-white/5 backdrop-blur-sm overflow-hidden">
+        <div className="h-full overflow-y-auto p-4 font-mono text-sm">
           {filteredLogs.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-gray-500">
-                {filter ? 'No logs match your filter' : 'No logs yet'}
+            <div className="flex flex-col items-center justify-center h-full text-center">
+              <div className="text-5xl mb-4 opacity-50">📝</div>
+              <p className="text-slate-500">
+                {filter || levelFilter !== 'all' ? 'No logs match your filter' : 'No logs yet'}
+              </p>
+              <p className="text-slate-600 text-xs mt-2">
+                Logs will appear here as events occur
               </p>
             </div>
           ) : (
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               {filteredLogs.map((log, index) => (
                 <div
                   key={index}
-                  className={`${getLogColor(log)} hover:bg-white/5 px-2 py-1 rounded transition-colors text-gray-300`}
+                  className={`px-3 py-1.5 rounded-lg transition-colors hover:bg-white/5 ${getLogStyle(log)}`}
                 >
-                  {log}
+                  <span className="text-slate-600 mr-3 text-xs">{extractTimestamp(log)}</span>
+                  <span>{extractMessage(log)}</span>
                 </div>
               ))}
               <div ref={logsEndRef} />
             </div>
           )}
         </div>
+      </div>
 
-        {/* Stats */}
-        <div className="mt-4 flex items-center justify-between text-sm text-gray-600">
-          <span>
-            {filteredLogs.length} log{filteredLogs.length !== 1 ? 's' : ''}
-            {filter && ` (filtered from ${logs.length})`}
+      {/* Stats Bar */}
+      <div className="flex items-center justify-between text-xs text-slate-500 px-1 flex-shrink-0">
+        <div className="flex items-center gap-4">
+          <span>{filteredLogs.length} log{filteredLogs.length !== 1 ? 's' : ''}</span>
+          {(filter || levelFilter !== 'all') && (
+            <span className="text-slate-600">(filtered from {logs.length})</span>
+          )}
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            {logs.filter(l => getLogLevel(l) === 'success').length} success
           </span>
-          <span className="text-xs text-gray-500">
-            Logs are limited to the last 1000 entries
+          <span className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-red-500" />
+            {logs.filter(l => getLogLevel(l) === 'error').length} errors
           </span>
         </div>
       </div>

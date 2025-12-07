@@ -14,6 +14,7 @@
     "package": "npm run build:all && electron-builder --dir",
     "dist": "npm run build:all && electron-builder",
     "dist:win": "npm run build:all && electron-builder --win",
+    "dist:win:unsigned": "npm run build:all && electron-builder --win portable --config.forceCodeSigning=false",
     "dist:mac": "npm run build:all && electron-builder --mac",
     "lint": "eslint src --ext ts,tsx",
     "preview": "vite preview"
@@ -28,10 +29,11 @@
   "author": "GPU Marketplace",
   "license": "MIT",
   "dependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "axios": "^1.6.0",
     "electron-store": "^8.1.0",
-    "axios": "^1.6.0"
+    "form-data": "^4.0.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
@@ -68,11 +70,13 @@
     ],
     "extraResources": [
       {
-        "from": "../build",
-        "to": "backend",
-        "filter": [
-          "**/*"
-        ]
+        "from": "../build/bin/blender",
+        "to": "backend/bin/blender",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "../build/bin/gpu_info.json",
+        "to": "backend/bin/gpu_info.json"
       }
     ],
     "mac": {
@@ -88,7 +92,8 @@
         "nsis",
         "portable"
       ],
-      "icon": "build/icon.ico"
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": false
     },
     "linux": {
       "target": [
